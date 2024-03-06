@@ -1,5 +1,6 @@
 package com.Inventory.management.Inventory.Management.System.security;
 
+import com.Inventory.management.Inventory.Management.System.payload.request.AssignRequest;
 import com.Inventory.management.Inventory.Management.System.security.jwt.AuthEntryPointJwt;
 import com.Inventory.management.Inventory.Management.System.security.jwt.AuthTokenFilter;
 import com.Inventory.management.Inventory.Management.System.security.services.UserDetailsServiceImpl;
@@ -16,6 +17,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
 
 @Configuration
 
@@ -69,4 +71,13 @@ public class WebSecurityConfig {
 
         return http.build();
     }
+
+
+
+    @Bean
+    public AssignRequest assignRequest() {
+        return new AssignRequest();
+    }
+
+
 }

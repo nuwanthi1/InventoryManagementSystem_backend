@@ -16,7 +16,6 @@ public class Asset {
     private String assetId;
     private String name;
     private String type;
-    private int qty;
     private String assignedTo;
 
 

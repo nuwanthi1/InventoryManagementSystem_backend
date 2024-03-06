@@ -18,6 +18,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import java.util.HashSet;
@@ -25,7 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-
+import org.springframework.security.access.prepost.PreAuthorize;
 
 
 @CrossOrigin(origins = "*", maxAge = 3600)
@@ -137,5 +138,30 @@ public class AuthController {
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new MessageResponse("Error occurred while registering user: " + e.getMessage()));
         }
+    }
+    @GetMapping("/profile")
+    @PreAuthorize("hasRole('ROLE_USER'), hasRole('ROLE_ADMIN')")
+    public ResponseEntity<User> getUserProfile(Authentication authentication) {
+        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+        User user = userRepository.findByUsername(userDetails.getUsername())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        return ResponseEntity.ok(user);
+    }
+
+    @GetMapping("/admin/profile")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    public ResponseEntity<User> getAdminProfile(Authentication authentication) {
+        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+        User user = userRepository.findByUsername(userDetails.getUsername())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        return ResponseEntity.ok(user);
+    }
+
+    @GetMapping("/user/{username}/profile")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    public ResponseEntity<User> getUserProfileByUsername(@PathVariable String username) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        return ResponseEntity.ok(user);
     }
 }
