@@ -29,7 +29,8 @@ import java.util.stream.Collectors;
 import org.springframework.security.access.prepost.PreAuthorize;
 
 
-@CrossOrigin(origins = "*", maxAge = 3600)
+@CrossOrigin(origins = "http://localhost:4200", maxAge = 3600)
+
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
@@ -48,21 +49,19 @@ public class AuthController {
     @Autowired
     JwtUtils jwtUtils;
 
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
     @PostMapping("/signin")
     public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
-
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(loginRequest.getUsername(), loginRequest.getPassword()));
-
-
         SecurityContextHolder.getContext().setAuthentication(authentication);
         String jwt = jwtUtils.generateJwtToken(authentication);
-
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
         List<String> roles = userDetails.getAuthorities().stream()
                 .map(item -> item.getAuthority())
                 .collect(Collectors.toList());
-
         return ResponseEntity.ok(new JwtResponse(jwt,
                 userDetails.getId(),
                 userDetails.getUsername(),
@@ -73,19 +72,22 @@ public class AuthController {
     @PostMapping("/signup")
     public ResponseEntity<?> registerUser(@Valid @RequestBody SignupRequest signUpRequest) {
         try {
-            if (userRepository.existsByUsername(signUpRequest.getUsername())) {
+            boolean usernameExists = userRepository.existsByUsername(signUpRequest.getUsername());
+            boolean emailExists = userRepository.existsByEmail(signUpRequest.getEmail());
+
+            if (usernameExists && emailExists) {
+                return ResponseEntity
+                        .badRequest()
+                        .body(new MessageResponse("Error: Username and email are already taken!"));
+            } else if (usernameExists) {
                 return ResponseEntity
                         .badRequest()
                         .body(new MessageResponse("Error: Username is already taken!"));
-            }
-
-            if (userRepository.existsByEmail(signUpRequest.getEmail())) {
+            } else if (emailExists) {
                 return ResponseEntity
                         .badRequest()
                         .body(new MessageResponse("Error: Email is already in use!"));
             }
-
-            // Check for required fields for regular users
             if ( signUpRequest.getRoles() == null ||signUpRequest.getRoles().contains("user")) {
                 if (signUpRequest.getFirstName() == null || signUpRequest.getLastName() == null || signUpRequest.getTelephoneNumber() == null) {
                     return ResponseEntity
@@ -93,14 +95,11 @@ public class AuthController {
                             .body(new MessageResponse("Error: First name, last name, and telephone number are required for regular users!"));
                 }
             }
-
             User user = new User(signUpRequest.getUsername(),
                     signUpRequest.getEmail(),
                     encoder.encode(signUpRequest.getPassword()));
-
             Set<String> strRoles = signUpRequest.getRoles();
             Set<Role> roles = new HashSet<>();
-
             if (strRoles == null) {
                 Role userRole = roleRepository.findByName(ERole.ROLE_USER)
                         .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
@@ -120,18 +119,13 @@ public class AuthController {
                     }
                 });
             }
-
             user.setRoles(roles);
-
-            // Additional user details only for regular users
             if (roles.stream().anyMatch(role -> role.getName().equals(ERole.ROLE_USER))) {
                 user.setFirstName(signUpRequest.getFirstName());
                 user.setLastName(signUpRequest.getLastName());
                 user.setTelephoneNumber(signUpRequest.getTelephoneNumber());
             }
-
             userRepository.save(user);
-
             return ResponseEntity.ok(new MessageResponse("User registered successfully!"));
         } catch (Exception e) {
             return ResponseEntity
@@ -139,8 +133,8 @@ public class AuthController {
                     .body(new MessageResponse("Error occurred while registering user: " + e.getMessage()));
         }
     }
-    @GetMapping("/profile")
-    @PreAuthorize("hasRole('ROLE_USER'), hasRole('ROLE_ADMIN')")
+    @GetMapping("/user/profile")
+    @PreAuthorize("hasRole('ROLE_USER')")
     public ResponseEntity<User> getUserProfile(Authentication authentication) {
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
         User user = userRepository.findByUsername(userDetails.getUsername())
@@ -154,6 +148,7 @@ public class AuthController {
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
         User user = userRepository.findByUsername(userDetails.getUsername())
                 .orElseThrow(() -> new RuntimeException("User not found"));
+        System.err.println("Error: User not found");
         return ResponseEntity.ok(user);
     }
 
@@ -163,5 +158,51 @@ public class AuthController {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found"));
         return ResponseEntity.ok(user);
+    }
+
+
+    @PutMapping("/admin/updateProfile/{username}")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    public ResponseEntity<User> updateAdminProfile(Authentication authentication, @RequestBody User updatedAdmin) {
+        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+        User admin = userRepository.findByUsername(userDetails.getUsername())
+                .orElseThrow(() -> new RuntimeException("Admin not found"));
+        if (!admin.getUsername().equals(updatedAdmin.getUsername()) && userRepository.existsByUsername(updatedAdmin.getUsername())) {
+            throw new RuntimeException("Username " + updatedAdmin.getUsername() + " is already taken");
+        }
+        if (!admin.getEmail().equals(updatedAdmin.getEmail()) && userRepository.existsByEmail(updatedAdmin.getEmail())) {
+            throw new RuntimeException("Email " + updatedAdmin.getEmail() + " is already in use");
+        }
+        admin.setUsername(updatedAdmin.getUsername());
+        admin.setEmail(updatedAdmin.getEmail());
+        if (updatedAdmin.getPassword() != null) {
+            admin.setPassword(passwordEncoder.encode(updatedAdmin.getPassword()));
+        }
+        userRepository.save(admin);
+        return ResponseEntity.ok(admin);
+    }
+
+
+    @PutMapping("/user/updateProfile/{username}")
+    @PreAuthorize("hasRole('ROLE_USER')")
+    public ResponseEntity<User> updateUserProfile(Authentication authentication, @RequestBody User updatedUser) {
+        UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+        User user = userRepository.findByUsername(userDetails.getUsername())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        if (!user.getUsername().equals(updatedUser.getUsername()) && userRepository.existsByUsername(updatedUser.getUsername())) {
+            throw new RuntimeException("Username taken");
+        }
+        if (!user.getEmail().equals(updatedUser.getEmail()) && userRepository.existsByEmail(updatedUser.getEmail())) {
+            throw new RuntimeException("Email taken");
+        }
+        user.setFirstName(updatedUser.getFirstName());
+        user.setLastName(updatedUser.getLastName());
+        user.setEmail(updatedUser.getEmail());
+        user.setTelephoneNumber(updatedUser.getTelephoneNumber());
+        user.setUsername(updatedUser.getUsername());
+        String encodedPassword = passwordEncoder.encode(updatedUser.getPassword());
+        user.setPassword(encodedPassword);
+        User savedUser = userRepository.save(user);
+        return ResponseEntity.ok(savedUser);
     }
 }

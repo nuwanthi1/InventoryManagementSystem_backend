@@ -12,12 +12,5 @@ public class AssignRequest {
     @NotBlank
     private String assignedTo;
 
-  /*  public AssignRequest() {
 
-    }
-
-    public AssignRequest(String assetId, String assignedTo) {
-        this.assetId = assetId;
-        this.assignedTo = assignedTo;
-    } */
 }
