@@ -13,13 +13,14 @@ public class DashboardService {
     @Autowired
     private AssetRepository assetRepository;
 
+    public List<Asset> getUserAssets(String username) {
+               return assetRepository.findByAssignedTo(username);
+    }
     public Map<String, Integer> getTotalAssetsData() {
         Map<String, Integer> totalAssetsData = new HashMap<>();
         List<Asset> assets = assetRepository.findAll();
-
-        // Count total assets for each type
         for (Asset asset : assets) {
-            String assetType = asset.getType();
+            String assetType = asset.getAssetType();
             totalAssetsData.put(assetType, totalAssetsData.getOrDefault(assetType, 0) + 1);
         }
 
@@ -29,26 +30,26 @@ public class DashboardService {
     public Map<String, Integer> getAssignedAssetsData() {
         Map<String, Integer> assignedAssetsData = new HashMap<>();
         List<Asset> assignedAssets = assetRepository.findByAssignedToIsNotNull();
-
-        // Count assigned assets for each type
         for (Asset asset : assignedAssets) {
-            String assetType = asset.getType();
-            assignedAssetsData.put(assetType, assignedAssetsData.getOrDefault(assetType, 0) + 1);
+            if (!asset.getAssignedTo().isEmpty()) {
+                String assetType = asset.getAssetType();
+                assignedAssetsData.put(assetType, assignedAssetsData.getOrDefault(assetType, 0) + 1);
+            }
         }
-
         return assignedAssetsData;
     }
 
     public Map<String, Integer> getFreeAssetsData() {
         Map<String, Integer> freeAssetsData = new HashMap<>();
-        List<Asset> freeAssets = assetRepository.findByAssignedToIsNull();
-        // Count free assets for each type
-        for (Asset asset : freeAssets) {
-            String assetType = asset.getType();
-            freeAssetsData.put(assetType, freeAssetsData.getOrDefault(assetType, 0) + 1);
+        List<Asset> allAssets = assetRepository.findAll();
+        for (Asset asset : allAssets) {
+            if (asset.getAssignedTo() == null || asset.getAssignedTo().isEmpty()) {
+                String assetType = asset.getAssetType();
+                freeAssetsData.put(assetType, freeAssetsData.getOrDefault(assetType, 0) + 1);
+            }
         }
-
         return freeAssetsData;
     }
 
 }
+
